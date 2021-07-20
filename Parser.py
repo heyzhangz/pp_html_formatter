@@ -109,8 +109,9 @@ def delMDTag(line):
     """
         去除markdown的特殊标记
     """
-    line = re.sub(r"\*", '', line)
+    line = re.sub(r"[*_]", '', line)
     line = re.sub(r"\\\.", '.', line)
+    line = preproLine(line)
 
     return line
 
@@ -239,13 +240,13 @@ ALL_SERIAL_NUM_PATTERN = [
     r"^[一二三四五六七八九十]+[)）]", # 一)
     r"^[一二三四五六七八九十]+[、.．]", # 一、
     r"^[㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩]",
-    r"^[(（][0-9]{1,2}[)）]", # (1)
-    r"^[0-9]{1,2}[)）]", # (1
-    r"^[0-9]{1,2}[、.．](?!\d)", # 1.
-    r"^[0-9]{1,2}[、.．][0-9]{1,2}[、.．]?(?!\d)", # 1.1
-    r"^[0-9]{1,2}([、.．][0-9]{1,2}){2}[、.．]?(?!\d)", # 1.1.1
-    r"^[0-9]{1,2}([、.．][0-9]{1,2}){3}[、.．]?(?!\d)", # 1.1.1.1
-    r"^[0-9]{1,2}([、.．][0-9]{1,2}){4}[、.．]?(?!\d)", # 1.1.1.1.1
+    r"^[(（]\d{1,2}[)）]", # (1)
+    r"^\d{1,2}[)）]", # (1
+    r"^\d{1,2}[、.．](?!\d)", # 1.
+    r"^\d{1,2}[、.．]\d{1,2}([、.．](?!\d)|(?![\d、.．]))", # 1.1
+    r"^\d{1,2}([、.．]\d{1,2}){2}([、.．](?!\d)|(?![\d、.．]))", # 1.1.1
+    r"^\d{1,2}([、.．]\d{1,2}){3}([、.．](?!\d)|(?![\d、.．]))", # 1.1.1.1
+    r"^\d{1,2}([、.．]\d{1,2}){4}([、.．](?!\d)|(?![\d、.．]))", # 1.1.1.1.1
     r"^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]",
     r"^[(（]?[⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛]",
     r"^[(（]?[❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴]",
@@ -275,7 +276,7 @@ def isSerialTitle(line):
     
     return None
 
-class SerialNumAdapter(AbstractParser):
+class SerialNumParser(AbstractParser):
     """
         序号标题适配器, 用于解析带序号标题格式的隐私政策
     """
@@ -295,6 +296,8 @@ class SerialNumAdapter(AbstractParser):
             # 如果是<h>标签
             nowType = "MARKDOWN_%d" % md["level"]
             for level, regx in self.nowLevelList.items():
+                if level > self.nowMaxLevel:
+                    break
                 if not regx.startswith("MARKDOWN"):
                     continue
                 if regx == nowType:
@@ -303,6 +306,8 @@ class SerialNumAdapter(AbstractParser):
             # 去除加粗, 斜体
             line = delMDTag(line)
             for level, regx in self.nowLevelList.items():
+                if level > self.nowMaxLevel:
+                    break
                 if regx.startswith("MARKDOWN"):
                     continue
                 if re.search(regx, line):
@@ -334,6 +339,10 @@ class SerialNumAdapter(AbstractParser):
             if res:
                 # 如果是已有的标题
                 self.parseRes.append(parseTitle(res[0], res[1]))
+
+                if self.nowMaxLevel > res[0]:
+                    self.nowMaxLevel = res[0]
+
                 continue
 
             # 如果不是已有标题, 判断是不是序号标题
@@ -355,10 +364,24 @@ if __name__ == "__main__":
             if not f.endswith(".md"):
                 continue
             
-            # par = MutiTitleParser(readMarkdown(os.path.join(root, f)))
-            par = SerialNumAdapter(readMarkdown(os.path.join(root, f)))
-            par.parse()
+            fp = os.path.join(root, f)
+            parserList = [
+                ("MutiTitleParser", MutiTitleParser(readMarkdown(fp))),
+                ("SerialNumParser", SerialNumParser(readMarkdown(fp)))
+            ]
+
+            maxScore = 0
+            maxOutput = None
+            maxParser = "None"
+            for name, par in parserList:
+                par.parse()
+                score = par.getScore()
+                if score > maxScore:
+                    maxScore = score
+                    maxOutput = par.outputMarkdown()
+                    maxParser = name
             
+            print("[INFO] choose parser: %s, score: %d, file: %s" % (maxParser, maxScore, fp))
             with open(os.path.join(r"./testcases", f), 'w', encoding="utf-8") as g:
                 g.write(par.outputMarkdown())
 
