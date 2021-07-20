@@ -8,7 +8,9 @@ class Element:
     CONTENT = "content"
 
 def isLink(line):
-
+    """
+        判断markdown单行是否为超链接
+    """
     # 存在图片超链接嵌套的情况
     res = re.search(r"(?<!\!)\[(?P<text>.*)\]\((?P<link>.*?)\)", line)
 
@@ -23,7 +25,9 @@ def isLink(line):
     return (text, link)
 
 def isImg(line):
-
+    """
+        判断markdown单行是否为图片
+    """
     res = re.search(r"(?<=\!)\[(?P<text>.*?)\]\((?P<link>.*?)\)", line)
 
     if res == None:
@@ -37,7 +41,9 @@ def isImg(line):
     return (text, link)
 
 def isTitle(line):
-
+    """
+        判断markdown单行是否为markdown格式标题(#)
+    """
     res = re.search(r"^(?P<level>#+) (?P<text>.*)", line)
 
     if res == None:
@@ -51,8 +57,10 @@ def isTitle(line):
     return (level, text)
 
 def isBold(line):
-
-    res = re.search(r"^\*\*(?P<text>.*)\*\*", line)
+    """
+        判断markdown单行是否为黑体
+    """
+    res = re.search(r"^\*\*(?P<text>.*)\*\*$", line)
 
     if res == None:
         return None
@@ -62,18 +70,24 @@ def isBold(line):
     return text
 
 def preproLine(line):
+    """
+        预处理markdown单行, 删除首位空白符
+    """
 
     line = re.sub(r"^\s", "", line)
     
     return line.strip()
 
-def readMD(fpath):
+def readMarkdown(fpath):
 
     with open(fpath, 'r', encoding="utf-8") as f:
         lines = f.readlines()
 
     return lines
 
+"""
+    根据解析结果格式化文本
+"""
 def formatTitle(res):
 
     return "%s %s\n" % ('#' * res["level"], res["text"])
@@ -88,9 +102,11 @@ def formatLink(res):
 
 def formatContent(res):
 
+    # 对于content, 剔除部分无效字符
     text = re.sub(r"\*", "", res["text"])
 
     return "%s\n" % text
+
 
 class AbstractParser():
 
@@ -103,7 +119,9 @@ class AbstractParser():
         pass
 
     def outputMarkdown(self):
-        
+        """
+            输出解析后的markdown文本
+        """
         out = ""
         for res in self.parseRes:
             lineType = res["type"]
@@ -115,7 +133,9 @@ class AbstractParser():
         return out
 
     def getScore(self):
-        
+        """
+            计算解析分数
+        """
         maxscore = 0
         for res in self.parseRes:
             if res["type"] == Element.TITLE:
@@ -141,7 +161,9 @@ class AbstractParser():
     pass
 
 class MutiTitleParser(AbstractParser):
-
+    """
+        Html多级标题的parser, 用于解析标准的<h>标签的隐私政策
+    """
     def __init__(self, lines):
         super().__init__(lines)
         pass
@@ -196,7 +218,7 @@ if __name__ == "__main__":
             if not f.endswith(".md"):
                 continue
             
-            mp = MutiTitleParser(readMD(os.path.join(root, f)))
+            mp = MutiTitleParser(readMarkdown(os.path.join(root, f)))
             mp.parse()
             
             with open(os.path.join(r"./testcases", f), 'w', encoding="utf-8") as g:
