@@ -22,7 +22,11 @@ def isLink(line):
     if len(link.strip()) == 0:
         return None
 
-    return (text, link)
+    return {
+                "type": Element.LINK,
+                "text": text,
+                "link": link
+           }
 
 def isImg(line):
     """
@@ -38,9 +42,13 @@ def isImg(line):
     if len(link.strip()) == 0:
         return None
 
-    return (text, link)
+    return {
+                "type": Element.IMAGE,
+                "text": text,
+                "link": link
+           }
 
-def isTitle(line):
+def isMDTitle(line):
     """
         判断markdown单行是否为markdown格式标题(#)
     """
@@ -54,7 +62,11 @@ def isTitle(line):
     if level <= 0:
         return None
     
-    return (level, text)
+    return {
+                "type": Element.TITLE,
+                "level": level,
+                "text": text
+           }
 
 def isBold(line):
     """
@@ -69,6 +81,21 @@ def isBold(line):
 
     return text
 
+def parseContent(line):
+
+    return {
+                "type": Element.CONTENT,
+                "text": line
+           }
+
+def parseTitle(level, text):
+
+    return {
+                "type": Element.TITLE,
+                "level": level,
+                "text": text
+           }
+
 def preproLine(line):
     """
         预处理markdown单行, 删除首位空白符
@@ -77,6 +104,15 @@ def preproLine(line):
     line = re.sub(r"^\s", "", line)
     
     return line.strip()
+
+def delMDTag(line):
+    """
+        去除markdown的特殊标记
+    """
+    line = re.sub(r"\*", '', line)
+    line = re.sub(r"\\\.", '.', line)
+
+    return line
 
 def readMarkdown(fpath):
 
@@ -90,7 +126,7 @@ def readMarkdown(fpath):
 """
 def formatTitle(res):
 
-    return "%s %s\n" % ('#' * res["level"], res["text"])
+    return "%s %s\n" % (('#' * res["level"]), res["text"])
 
 def formatImage(res):
 
@@ -122,6 +158,7 @@ class AbstractParser():
         """
             输出解析后的markdown文本
         """
+        self._formatParseRes()
         out = ""
         for res in self.parseRes:
             lineType = res["type"]
@@ -179,35 +216,135 @@ class MutiTitleParser(AbstractParser):
             # 先判断是不是超链接, 存在超链接嵌套的情况
             res = isLink(line)
             if res:
-                self.parseRes.append({
-                    "type": Element.LINK,
-                    "text": res[0],
-                    "link": res[1]
-                })
+                self.parseRes.append(res)
                 continue
                 
             # 判断是否是图片
             res = isImg(line)
             if res:
-                self.parseRes.append({
-                    "type": Element.IMAGE,
-                    "link": res[1]
-                })
+                self.parseRes.append(res)
                 continue
 
-            res = isTitle(line)
+            res = isMDTitle(line)
             if res:
-                self.parseRes.append({
-                    "type": Element.TITLE,
-                    "level": res[0],
-                    "text": res[1]
-                })
+                self.parseRes.append(res)
                 continue
             
-            self.parseRes.append({
-                "type": Element.CONTENT,
-                "text": line
-            })
+            self.parseRes.append(parseContent(line))
+
+        pass
+
+ALL_SERIAL_NUM_PATTERN = [
+    r"^[(（][一二三四五六七八九十]+[)）]", # (一)
+    r"^[一二三四五六七八九十]+[)）]", # 一)
+    r"^[一二三四五六七八九十]+[、.．]", # 一、
+    r"^[㈠㈡㈢㈣㈤㈥㈦㈧㈨㈩]",
+    r"^[(（][0-9]{1,2}[)）]", # (1)
+    r"^[0-9]{1,2}[)）]", # (1
+    r"^[0-9]{1,2}[、.．](?!\d)", # 1.
+    r"^[0-9]{1,2}[、.．][0-9]{1,2}[、.．]?(?!\d)", # 1.1
+    r"^[0-9]{1,2}([、.．][0-9]{1,2}){2}[、.．]?(?!\d)", # 1.1.1
+    r"^[0-9]{1,2}([、.．][0-9]{1,2}){3}[、.．]?(?!\d)", # 1.1.1.1
+    r"^[0-9]{1,2}([、.．][0-9]{1,2}){4}[、.．]?(?!\d)", # 1.1.1.1.1
+    r"^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]",
+    r"^[(（]?[⒈⒉⒊⒋⒌⒍⒎⒏⒐⒑⒒⒓⒔⒕⒖⒗⒘⒙⒚⒛]",
+    r"^[(（]?[❶❷❸❹❺❻❼❽❾❿⓫⓬⓭⓮⓯⓰⓱⓲⓳⓴]",
+    r"^[ⅰⅱⅲⅳⅴⅵⅶⅷⅸⅹ]",
+    r"^[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩⅪⅫ][、.．]",
+    r"^[(（][a-zA-Z][)）]", # (a)
+    r"^[a-zA-Z][)）]", # a)
+    r"^[a-zA-Z][、.．]", # a.
+    r"^[(（]?[ⓐⓑⓒⓓⓔⓕⓖⓗⓘⓙⓚⓛⓜⓝⓞⓟⓠⓡⓢⓣⓤⓥⓦⓧⓨⓩ]",
+    r"^[(（]?[ⒶⒷⒸⒹⒺⒻⒼⒽⒾⒿⓀⓁⓂⓃⓄⓅⓆⓇⓈⓉⓊⓋⓌⓍⓎⓏ]"
+
+    # markdown标题也算进行, 但是单独处理, 格式对应为
+    # "MARKDOWN_<lv>"
+]
+
+def isSerialTitle(line):
+
+    res = isMDTitle(line)
+    if res:
+        return ("MARKDOWN_%d" % res["level"], res["text"])
+
+    # 去除加粗, 斜体
+    line = delMDTag(line)
+    for regx in ALL_SERIAL_NUM_PATTERN:
+        if re.match(regx, line):
+            return (regx, line)
+    
+    return None
+
+class SerialNumAdapter(AbstractParser):
+    """
+        序号标题适配器, 用于解析带序号标题格式的隐私政策
+    """
+
+    def __init__(self, lines):
+        super().__init__(lines)
+
+        self.nowLevelList = {} # 保存现有标题等级结构
+        self.nowMaxLevel = 0
+        pass
+    
+    def _isAlreadyTitle(self, line):
+        # 判断是否是已有的标题结构
+
+        md = isMDTitle(line)
+        if md:
+            # 如果是<h>标签
+            nowType = "MARKDOWN_%d" % md["level"]
+            for level, regx in self.nowLevelList.items():
+                if not regx.startswith("MARKDOWN"):
+                    continue
+                if regx == nowType:
+                    return (level, md["text"])
+        else:
+            # 去除加粗, 斜体
+            line = delMDTag(line)
+            for level, regx in self.nowLevelList.items():
+                if regx.startswith("MARKDOWN"):
+                    continue
+                if re.search(regx, line):
+                    return (level, line)
+        
+        return None
+
+    def parse(self):
+
+        for line in self.lines:
+            line = preproLine(line)
+
+            if len(line) == 0:
+                continue
+            
+             # 先判断是不是超链接, 存在超链接嵌套的情况
+            res = isLink(line)
+            if res:
+                self.parseRes.append(res)
+                continue
+                
+            # 判断是否是图片
+            res = isImg(line)
+            if res:
+                self.parseRes.append(res)
+                continue
+
+            res = self._isAlreadyTitle(line)
+            if res:
+                # 如果是已有的标题
+                self.parseRes.append(parseTitle(res[0], res[1]))
+                continue
+
+            # 如果不是已有标题, 判断是不是序号标题
+            res = isSerialTitle(line)
+            if res:
+                self.nowMaxLevel += 1
+                self.nowLevelList[self.nowMaxLevel] = res[0]
+                self.parseRes.append(parseTitle(self.nowMaxLevel, res[1]))
+                continue
+            
+            self.parseRes.append(parseContent(line))
 
         pass
 
@@ -218,9 +355,10 @@ if __name__ == "__main__":
             if not f.endswith(".md"):
                 continue
             
-            mp = MutiTitleParser(readMarkdown(os.path.join(root, f)))
-            mp.parse()
+            # par = MutiTitleParser(readMarkdown(os.path.join(root, f)))
+            par = SerialNumAdapter(readMarkdown(os.path.join(root, f)))
+            par.parse()
             
             with open(os.path.join(r"./testcases", f), 'w', encoding="utf-8") as g:
-                g.write(mp.outputMarkdown())
+                g.write(par.outputMarkdown())
 
