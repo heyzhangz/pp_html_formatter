@@ -187,7 +187,7 @@ class AbstractParser():
         preLevel = -1
         for idx, node in enumerate(self.parseRes):
             if node["type"] == Element.TITLE:
-                if node["level"] >= preLevel:
+                if node["level"] <= preLevel:
                     self.parseRes[idx - 1]["type"] = Element.CONTENT
                 preLevel = node["level"]
             else:
