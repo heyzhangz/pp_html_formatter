@@ -15,6 +15,8 @@ import email
 import bs4
 from xml.etree.ElementTree import Element, SubElement, ElementTree
 from bs4 import BeautifulSoup
+import html2text as ht
+import IPython
 
 def parseMhtml(fpath):
     """
@@ -103,7 +105,14 @@ def transformHtml(htmltext):
     """
         # TODO change html text to markdown
     """
-    pass
+    text_maker = ht.HTML2Text()
+    text_maker.bypass_tables = False
+    text_maker.ignore_tables = False
+    try:
+        markdown = text_maker.handle(str(htmltext))
+    except Exception as e:
+        print("[ERROR] can not transformer to markdown: " + str(e))
+    return markdown
 
 if __name__ == "__main__":
 
@@ -118,11 +127,14 @@ if __name__ == "__main__":
             soup = readHtml(fpath)
             body = findPPBody(soup)
             mdtxt = transformHtml(body)
-            
-            basename = os.path.basename(fpath)
-            savename = basename + ".txt"
-            with open(os.path.join(r"./temp", savename), "w", encoding="utf-8") as wf:
-                wf.write(body.prettify())
+            open(os.path.join('/home/yh/code/pp_html_formatter/case_out', f+'.md'), 'w').write(mdtxt)
+
+
+
+            # basename = os.path.basename(fpath)
+            # savename = basename + ".txt"
+            # with open(os.path.join(r"./temp", savename), "w", encoding="utf-8") as wf:
+            #     wf.write(body.prettify())
 
             # savexmlname = basename + ".xml"
             # pproot.buildXMLTree().write(os.path.join(r"./tempxml", savexmlname), encoding="utf-8")
